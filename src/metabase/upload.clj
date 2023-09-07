@@ -170,6 +170,39 @@
     "unnamed_column"
     (u/slugify (str/trim raw-name))))
 
+(defn- is-pk?
+  [[type name]]
+  (#{["id" ::int]
+     ["pk" ::int]}
+   [(u/lower-case-en name) type]))
+
+(defn- add-pk-column
+  "Adds :auto-increment and [:not nil] to the first ID/PK column it finds; otherwise prepends a new ID column to the
+  columns list."
+  [name-type-pairs]
+  (let [found-it   (atom false)
+        pked-pairs (map (fn [[type name :as p]]
+                          (if (and (not @found-it)
+                                   (is-pk? p))
+                            (do (reset! found-it true)
+                                [name [type :auto-increment [:not nil]]])
+                            p))
+                        name-type-pairs)]
+    (if @found-it ;; we already have a PK, just return them
+      pked-pairs
+      ;;otherwise, prepend a new ID column
+      (cons [::int ["id" :auto-increment [:not nil]]]
+            name-type-pairs))))
+
+(defn- ->database-type
+  "Converts our internal types (e.g., ::int) to the type expected by the database (e.g., \"INTEGER\"). Returned type may
+  be a simple string or a vector with HoneySQL options"
+  [driver type-or-type-vector]
+  (if (coll? type-or-type-vector)
+    (vec (cons (driver/upload-type->database-type driver (first type-or-type-vector))
+               (rest type-or-type-vector)))
+    (driver/upload-type->database-type driver type-or-type-vector)))
+
 (defn- rows->schema
   [header rows]
   (let [normalized-header (->> header
@@ -182,6 +215,7 @@
          (reduce coalesce-types (repeat column-count nil))
          (map #(or % ::text))
          (map vector normalized-header)
+         (add-pk-column)
          (ordered-map/ordered-map))))
 
 ;;;; +------------------+
@@ -312,7 +346,7 @@
    Returns the file size, number of rows, and number of columns."
   [driver db-id table-name ^File csv-file]
   (let [col->upload-type   (detect-schema csv-file)
-        col->database-type (update-vals col->upload-type (partial driver/upload-type->database-type driver))
+        col->database-type (update-vals col->upload-type (partial ->database-type driver))
         column-names       (keys col->upload-type)]
     (driver/create-table! driver db-id table-name col->database-type)
     (try
