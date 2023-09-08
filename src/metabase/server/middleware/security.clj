@@ -73,7 +73,12 @@
                                    ;; for react dev tools to work in Firefox until resolution of
                                    ;; https://github.com/facebook/react/issues/17997
                                   (when config/is-dev?
-                                    "'unsafe-inline'")]
+                                    "'unsafe-inline'")
+                                  ;; To enable the CLJS REPL
+                                  ;; TODO: Is there a way to avoid this, maybe by having the Shadow server host JS files
+                                  ;; on its http://localhost:9630 and adding that to script-src instead.
+                                  (when config/is-dev?
+                                    "'unsafe-eval'")]
                                  (when-not config/is-dev?
                                    (map (partial format "'sha256-%s'") inline-js-hashes)))
                   :child-src    ["'self'"
@@ -103,7 +108,7 @@
                                    (snowplow/snowplow-url))
                                  ;; Webpack dev server
                                  (when config/is-dev?
-                                   "*:8080 ws://*:8080")]
+                                   "*:8080 ws://*:8080 ws://*:9630")]
                   :manifest-src ["'self'"]}]
       (format "%s %s; " (name k) (str/join " " vs))))})
 

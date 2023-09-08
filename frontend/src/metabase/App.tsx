@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import { connect } from "react-redux";
 import type { Location } from "history";
 
@@ -95,6 +95,9 @@ function App({
   useEffect(() => {
     initializeIframeResizer();
   }, []);
+
+  const [, forceUpdate] = useReducer(x => x + 1, 0);
+  window.__MB_TRIGGER_RERENDER = forceUpdate;
 
   return (
     <ErrorBoundary onError={onError}>

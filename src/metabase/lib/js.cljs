@@ -873,3 +873,34 @@
    Can be passed an integer table id or a legacy `card__<id>` string."
   [a-query table-id]
   (lib.core/with-different-table a-query table-id))
+
+;; This hooks into Webpack's Hot Module Reload, only in dev mode, to accept HMR when the CLJS changes.
+;; Shadow-cljs rebuilds the files, and webpack sees the change and reloads a subtree up to this file. Since there's no
+;; state held anywhere here, just library, code, there's no further action needed.
+;; TODO: shadow-cljs can update the code more swiftly when running in dev mode, but there are two problems.
+;; - The webpack build changes goog.provide/goog.require into __webpack_require__ etc., but shadow-cljs does not.
+;;   Therefore the code loaded by shadow-cljs won't compile in the browser.
+;; - Even if it did work, I could find a way to tell webpack's HMR to allow a hot reload (ie. don't refresh the page)
+;;   but to not also reload the files again a few seconds later.
+;; If this were to be fixed, remove the `:devtools {:autoload false}` in the shadow-cljs build.
+(when js/module.hot
+  ;; There are three moving parts to the hot reloading:
+  ;; 1. When we're about the "dispose" this module, meaning some metabase.lib.* pieces are getting reloaded, set a
+  ;;    marker on the `data` blob that will be passed from the dying version to the incoming version.
+  (js/module.hot.addDisposeHandler
+    (fn [^js data]
+      (set! (. data -cljsReloaded) true)))
+
+  ;; 2. When this module (or anything it depends on) is due to be reloaded, stop the update from propagating further by
+  ;;    declaring to the HMR runtime that it's being fully handled here.
+  (js/module.hot.accept
+    (fn [err ^js details]
+      (js/console.error "metabase.lib.js HMR accept error" err details)))
+
+  ;; 3. When the new module is being loaded, this will execute. If the cljsReloaded flag is set, we tickle a global bit
+  ;;    of React state that will cause a full-page rerender with the same state. Thus any code changes that impacts the
+  ;;    currently rendered bits of UI will get refreshed. Otherwise the React world doesn't know to rerender.
+  (when-let [^js data (.. js/module -hot -data)]
+    (when (.-cljsReloaded data)
+      (js/console.log "hot loading in - trigger React reload")
+      (js/window.__MB_TRIGGER_RERENDER))))
