@@ -45,7 +45,7 @@ describe("Mode", function () {
       it("has PivotDrill action", () => {
         const actions = mode?.actionsForClick(undefined, {});
 
-        expect(actions?.[0].name).toBe("breakout-by");
+        expect(actions?.[1].name).toBe("breakout-by");
       });
     });
 
