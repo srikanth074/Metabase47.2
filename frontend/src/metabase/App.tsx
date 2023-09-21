@@ -97,7 +97,9 @@ function App({
   }, []);
 
   const [, forceUpdate] = useReducer(x => x + 1, 0);
-  window.__MB_TRIGGER_RERENDER = forceUpdate;
+  (
+    window as unknown as { __MB_TRIGGER_RERENDER: () => void }
+  ).__MB_TRIGGER_RERENDER = forceUpdate;
 
   return (
     <ErrorBoundary onError={onError}>
